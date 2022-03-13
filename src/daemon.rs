@@ -23,6 +23,7 @@ use crate::config::Value;
 mod uinput;
 
 #[cfg(test)]
+mod parse;
 mod tests;
 
 struct KeyboardState {
