@@ -346,8 +346,6 @@ pub fn join_lines(lines: Vec<Line>) -> Vec<Line> {
     joined_lines
 }
 
-
-
 mod test_parse {
     use crate::parse::*;
     #[test]
