@@ -346,10 +346,183 @@ pub fn join_lines(lines: Vec<Line>) -> Vec<Line> {
     joined_lines
 }
 
+pub fn match_modifier(modifier: &str) -> Option<Modifier> {
+    match modifier.to_lowercase().as_str() {
+        "super" => Some(Modifier::Super),
+        "mod4" => Some(Modifier::Super),
+        "alt" => Some(Modifier::Alt),
+        "mod1" => Some(Modifier::Alt),
+        "control" => Some(Modifier::Control),
+        "ctrl" => Some(Modifier::Control),
+        "shift" => Some(Modifier::Shift),
+        _ => None,
+    }
+}
+
+pub fn match_keysym(keysym: &str) -> Option<evdev::Key> {
+    match keysym.to_lowercase().as_str() {
+        "q" => Some(evdev::Key::KEY_Q),
+        "w" => Some(evdev::Key::KEY_W),
+        "e" => Some(evdev::Key::KEY_E),
+        "r" => Some(evdev::Key::KEY_R),
+        "t" => Some(evdev::Key::KEY_T),
+        "y" => Some(evdev::Key::KEY_Y),
+        "u" => Some(evdev::Key::KEY_U),
+        "i" => Some(evdev::Key::KEY_I),
+        "o" => Some(evdev::Key::KEY_O),
+        "p" => Some(evdev::Key::KEY_P),
+        "a" => Some(evdev::Key::KEY_A),
+        "s" => Some(evdev::Key::KEY_S),
+        "d" => Some(evdev::Key::KEY_D),
+        "f" => Some(evdev::Key::KEY_F),
+        "g" => Some(evdev::Key::KEY_G),
+        "h" => Some(evdev::Key::KEY_H),
+        "j" => Some(evdev::Key::KEY_J),
+        "k" => Some(evdev::Key::KEY_K),
+        "l" => Some(evdev::Key::KEY_L),
+        "z" => Some(evdev::Key::KEY_Z),
+        "x" => Some(evdev::Key::KEY_X),
+        "c" => Some(evdev::Key::KEY_C),
+        "v" => Some(evdev::Key::KEY_V),
+        "b" => Some(evdev::Key::KEY_B),
+        "n" => Some(evdev::Key::KEY_N),
+        "m" => Some(evdev::Key::KEY_M),
+        "1" => Some(evdev::Key::KEY_1),
+        "2" => Some(evdev::Key::KEY_2),
+        "3" => Some(evdev::Key::KEY_3),
+        "4" => Some(evdev::Key::KEY_4),
+        "5" => Some(evdev::Key::KEY_5),
+        "6" => Some(evdev::Key::KEY_6),
+        "7" => Some(evdev::Key::KEY_7),
+        "8" => Some(evdev::Key::KEY_8),
+        "9" => Some(evdev::Key::KEY_9),
+        "0" => Some(evdev::Key::KEY_0),
+        "escape" => Some(evdev::Key::KEY_ESC),
+        "backspace" => Some(evdev::Key::KEY_BACKSPACE),
+        "return" => Some(evdev::Key::KEY_ENTER),
+        "enter" => Some(evdev::Key::KEY_ENTER),
+        "tab" => Some(evdev::Key::KEY_TAB),
+        "space" => Some(evdev::Key::KEY_SPACE),
+        "plus" => Some(evdev::Key::KEY_KPPLUS),
+        "minus" => Some(evdev::Key::KEY_MINUS),
+        "-" => Some(evdev::Key::KEY_MINUS),
+        "equal" => Some(evdev::Key::KEY_EQUAL),
+        "=" => Some(evdev::Key::KEY_EQUAL),
+        "grave" => Some(evdev::Key::KEY_GRAVE),
+        "`" => Some(evdev::Key::KEY_GRAVE),
+        "print" => Some(evdev::Key::KEY_SYSRQ),
+        "volumeup" => Some(evdev::Key::KEY_VOLUMEUP),
+        "xf86audioraisevolume" => Some(evdev::Key::KEY_VOLUMEUP),
+        "volumedown" => Some(evdev::Key::KEY_VOLUMEDOWN),
+        "xf86audiolowervolume" => Some(evdev::Key::KEY_VOLUMEDOWN),
+        "mute" => Some(evdev::Key::KEY_MUTE),
+        "xf86audiomute" => Some(evdev::Key::KEY_MUTE),
+        "brightnessup" => Some(evdev::Key::KEY_BRIGHTNESSUP),
+        "xf86monbrightnessup" => Some(evdev::Key::KEY_BRIGHTNESSUP),
+        "brightnessdown" => Some(evdev::Key::KEY_BRIGHTNESSDOWN),
+        "xf86monbrightnessdown" => Some(evdev::Key::KEY_BRIGHTNESSDOWN),
+        "xf86audioplay" => Some(evdev::Key::KEY_PLAYPAUSE),
+        "xf86audioprev" => Some(evdev::Key::KEY_PREVIOUSSONG),
+        "xf86audionext" => Some(evdev::Key::KEY_NEXTSONG),
+        "xf86audiostop" => Some(evdev::Key::KEY_STOP),
+        "xf86audiomedia" => Some(evdev::Key::KEY_MEDIA),
+        "," => Some(evdev::Key::KEY_COMMA),
+        "comma" => Some(evdev::Key::KEY_COMMA),
+        "." => Some(evdev::Key::KEY_DOT),
+        "dot" => Some(evdev::Key::KEY_DOT),
+        "period" => Some(evdev::Key::KEY_DOT),
+        "/" => Some(evdev::Key::KEY_SLASH),
+        "question" => Some(evdev::Key::KEY_QUESTION),
+        "slash" => Some(evdev::Key::KEY_SLASH),
+        "backslash" => Some(evdev::Key::KEY_BACKSLASH),
+        "leftbrace" => Some(evdev::Key::KEY_LEFTBRACE),
+        "[" => Some(evdev::Key::KEY_LEFTBRACE),
+        "bracketleft" => Some(evdev::Key::KEY_LEFTBRACE),
+        "rightbrace" => Some(evdev::Key::KEY_RIGHTBRACE),
+        "]" => Some(evdev::Key::KEY_RIGHTBRACE),
+        "bracketright" => Some(evdev::Key::KEY_RIGHTBRACE),
+        ";" => Some(evdev::Key::KEY_SEMICOLON),
+        "semicolon" => Some(evdev::Key::KEY_SEMICOLON),
+        "'" => Some(evdev::Key::KEY_APOSTROPHE),
+        "apostrophe" => Some(evdev::Key::KEY_APOSTROPHE),
+        "left" => Some(evdev::Key::KEY_LEFT),
+        "right" => Some(evdev::Key::KEY_RIGHT),
+        "up" => Some(evdev::Key::KEY_UP),
+        "down" => Some(evdev::Key::KEY_DOWN),
+        "pause" => Some(evdev::Key::KEY_PAUSE),
+        "home" => Some(evdev::Key::KEY_HOME),
+        "delete" => Some(evdev::Key::KEY_DELETE),
+        "insert" => Some(evdev::Key::KEY_INSERT),
+        "end" => Some(evdev::Key::KEY_END),
+        "prior" => Some(evdev::Key::KEY_PAGEDOWN),
+        "next" => Some(evdev::Key::KEY_PAGEUP),
+        "pagedown" => Some(evdev::Key::KEY_PAGEDOWN),
+        "pageup" => Some(evdev::Key::KEY_PAGEUP),
+        "f1" => Some(evdev::Key::KEY_F1),
+        "f2" => Some(evdev::Key::KEY_F2),
+        "f3" => Some(evdev::Key::KEY_F3),
+        "f4" => Some(evdev::Key::KEY_F4),
+        "f5" => Some(evdev::Key::KEY_F5),
+        "f6" => Some(evdev::Key::KEY_F6),
+        "f7" => Some(evdev::Key::KEY_F7),
+        "f8" => Some(evdev::Key::KEY_F8),
+        "f9" => Some(evdev::Key::KEY_F9),
+        "f10" => Some(evdev::Key::KEY_F10),
+        "f11" => Some(evdev::Key::KEY_F11),
+        "f12" => Some(evdev::Key::KEY_F12),
+        "f13" => Some(evdev::Key::KEY_F13),
+        "f14" => Some(evdev::Key::KEY_F14),
+        "f15" => Some(evdev::Key::KEY_F15),
+        "f16" => Some(evdev::Key::KEY_F16),
+        "f17" => Some(evdev::Key::KEY_F17),
+        "f18" => Some(evdev::Key::KEY_F18),
+        "f19" => Some(evdev::Key::KEY_F19),
+        "f20" => Some(evdev::Key::KEY_F20),
+        "f21" => Some(evdev::Key::KEY_F21),
+        "f22" => Some(evdev::Key::KEY_F22),
+        "f23" => Some(evdev::Key::KEY_F23),
+        "f24" => Some(evdev::Key::KEY_F24),
+        _ => None,
+    }
+}
+
+pub fn parse_keybinding(key: &str, line_nr: u32, path: PathBuf) -> Result<KeyBinding, Error> {
+    let mut modifiers: Vec<Modifier> = Vec::new();
+    let tokens: Vec<&str> = key.split('+').map(|x| x.trim()).collect();
+    let last_token = if let Some(token) = tokens.last() {
+        token
+    } else {
+        return Err(Error::InvalidConfig(ParseError::UnknownSymbol(path, line_nr)));
+    };
+    fn strip_prefix(token: &str) -> &str {
+        if token.starts_with('@') || token.starts_with('~') {
+            strip_prefix(&token[1..])
+        } else {
+            token
+        }
+    }
+
+    let on_release = last_token.starts_with('@') || last_token.starts_with("~@");
+    let send = last_token.starts_with('~') || last_token.starts_with("@~");
+    let keysym = match_keysym(strip_prefix(last_token));
+    for token in tokens.iter().take(tokens.len() - 1) {
+        if let Some(modifier) = match_modifier(token) {
+            modifiers.push(modifier);
+        } else {
+            return Err(Error::InvalidConfig(ParseError::InvalidModifier(path, line_nr)));
+        }
+    }
+    if let Some(keysym) = keysym {
+        Ok(KeyBinding { keysym, modifiers, on_release, send })
+    } else {
+        Err(Error::InvalidConfig(ParseError::UnknownSymbol(path, line_nr)))
+    }
+}
+
 mod test_parse {
     use crate::parse::*;
     #[test]
-    fn join_two_lines() {
+    fn test_join_line() {
         let line1 = Line::new("ctrl+shift+\\".to_string(), LineType::Key, 3);
         let line2 = Line::new("b".to_string(), LineType::Key, 3);
         assert_eq!(
@@ -359,7 +532,7 @@ mod test_parse {
     }
 
     #[test]
-    fn mark_line() {
+    fn test_mark_line() {
         let key = "ctrl+shift+\\".to_string();
         let command = " a".to_string();
         let comment = "# a".to_string();
@@ -371,7 +544,7 @@ mod test_parse {
     }
 
     #[test]
-    fn join_all_lines() {
+    fn test_join_lines() {
         let content = "super + b
     b
 super + \\

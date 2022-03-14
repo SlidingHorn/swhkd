@@ -24,6 +24,7 @@ mod uinput;
 
 #[cfg(test)]
 mod parse;
+#[cfg(test)]
 mod tests;
 
 struct KeyboardState {
