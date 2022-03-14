@@ -24,8 +24,8 @@ mod uinput;
 
 #[cfg(test)]
 mod parse;
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 struct KeyboardState {
     state_modifiers: HashSet<config::Modifier>,

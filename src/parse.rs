@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 // use std::str::pattern::Pattern;
@@ -205,6 +204,19 @@ impl Value for KeyBinding {
 pub struct Hotkey {
     pub keybinding: KeyBinding,
     pub command: String,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct KeyChord {
+    pub entry: KeyBinding,
+    pub chords: Vec<Vec<KeyBinding>>,
+    pub commands: Vec<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ParseOutput {
+    KeyChord(KeyChord),
+    Hotkey(Hotkey),
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
@@ -519,6 +531,170 @@ pub fn parse_keybinding(key: &str, line_nr: u32, path: PathBuf) -> Result<KeyBin
     }
 }
 
+pub fn parse_line(
+    keyline: Line,
+    commandline: Line,
+    path: PathBuf,
+) -> Result<Vec<ParseOutput>, Error> {
+    let mut output: Vec<ParseOutput> = Vec::new();
+    let keys: Vec<&str> = keyline.content.split(';').map(|x| x.trim()).collect();
+    let commands: Vec<String> = extract_curly_brace(&commandline.content);
+    let mut command_iter = commands.iter();
+    if keys.len() == 1 {
+        let keys = extract_curly_brace(keys[0]);
+        for item in keys {
+            let keybinding = parse_keybinding(&item, keyline.linenumber, path.clone())?;
+            output.push(ParseOutput::Hotkey(Hotkey {
+                keybinding,
+                command: command_iter.next().unwrap().to_string(),
+            }));
+        }
+        return Ok(output);
+    }
+    let mut keys_iter = keys.iter();
+    let entries = extract_curly_brace(keys_iter.next().unwrap());
+    let mut extracted_keys = Vec::new();
+    for item in keys_iter.by_ref() {
+        extracted_keys.push(extract_curly_brace(item));
+    }
+    let mut chords: Vec<Vec<KeyBinding>> = Vec::new();
+    for key in extracted_keys.iter().multi_cartesian_product() {
+        chords.push(vec![]);
+        for item in key {
+            chords.last_mut().unwrap().push(parse_keybinding(
+                item,
+                keyline.linenumber,
+                path.clone(),
+            )?);
+        }
+    }
+    for entry in entries {
+        let mut commands: Vec<String> = Vec::new();
+        for _ in &chords {
+            commands.push(command_iter.next().unwrap().to_string());
+        }
+        output.push(ParseOutput::KeyChord(KeyChord {
+            entry: parse_keybinding(&entry, keyline.linenumber, path.clone())?,
+            chords: chords.clone(),
+            commands,
+        }));
+    }
+    Ok(output)
+}
+
+pub fn extract_curly_brace(line: &str) -> Vec<String> {
+    if !line.contains('{') || !line.contains('}') || !line.is_ascii() {
+        return vec![line.to_string()];
+    }
+
+    // go through each character in the line and mark the position of each { and }
+    // if a { is not followed by a  }, return the line as is
+    let mut brace_positions: Vec<usize> = Vec::new();
+    let mut flag = false;
+    for (i, c) in line.chars().enumerate() {
+        if c == '{' {
+            if flag {
+                return vec![line.to_string()];
+            }
+            brace_positions.push(i);
+            flag = true;
+        } else if c == '}' {
+            if !flag {
+                return vec![line.to_string()];
+            }
+            brace_positions.push(i);
+            flag = false;
+        }
+    }
+
+    // now we have a list of positions of { and }
+    // we should extract the items between each pair of braces and store them in a vector
+    let mut items: Vec<String> = Vec::new();
+    let mut remaining_line: Vec<String> = Vec::new();
+    let mut start_index = 0;
+    for i in brace_positions.chunks(2) {
+        items.push(line[i[0] + 1..i[1]].to_string());
+        remaining_line.push(line[start_index..i[0]].to_string());
+        start_index = i[1] + 1;
+    }
+
+    // now we have a list of items between each pair of braces
+    // we should extract the items between each comma and store them in a vector
+    let mut tokens_vec: Vec<Vec<String>> = Vec::new();
+    for item in items {
+        // Edge case: escape periods
+        // example:
+        // ```
+        // super + {\,, .}
+        //    riverctl focus-output {previous, next}
+        // ```
+        let item = item.replace("\\,", "comma");
+
+        let items: Vec<String> = item.split(',').map(|s| s.trim().to_string()).collect();
+        tokens_vec.push(handle_ranges(items));
+    }
+
+    fn handle_ranges(items: Vec<String>) -> Vec<String> {
+        let mut output: Vec<String> = Vec::new();
+        for item in items {
+            if !item.contains('-') {
+                output.push(item);
+                continue;
+            }
+            let mut range = item.split('-').map(|s| s.trim());
+
+            let begin_char: &str = if let Some(b) = range.next() {
+                b
+            } else {
+                output.push(item);
+                continue;
+            };
+
+            let end_char: &str = if let Some(e) = range.next() {
+                e
+            } else {
+                output.push(item);
+                continue;
+            };
+
+            // Do not accept range values that are longer than one char
+            // Example invalid: {ef-p} {3-56}
+            // Beginning of the range cannot be greater than end
+            // Example invalid: {9-4} {3-2}
+            if begin_char.len() != 1 || end_char.len() != 1 || begin_char > end_char {
+                output.push(item);
+                continue;
+            }
+
+            // In swhkd we will parse the full range using ASCII values.
+
+            let begin_ascii_val = begin_char.parse::<char>().unwrap() as u8;
+            let end_ascii_val = end_char.parse::<char>().unwrap() as u8;
+
+            for ascii_number in begin_ascii_val..=end_ascii_val {
+                output.push((ascii_number as char).to_string());
+            }
+        }
+        output
+    }
+    // now write the tokens back to the line and output a vector
+    let mut output: Vec<String> = Vec::new();
+    // generate a cartesian product iterator for all the vectors in tokens_vec
+    let cartesian_product_iter = tokens_vec.iter().multi_cartesian_product();
+    for tokens in cartesian_product_iter.collect_vec() {
+        let mut line_to_push = String::new();
+        for i in 0..remaining_line.len() {
+            line_to_push.push_str(&remaining_line[i]);
+            line_to_push.push_str(tokens[i]);
+        }
+        if brace_positions[brace_positions.len() - 1] < line.len() - 1 {
+            line_to_push.push_str(&line[brace_positions[brace_positions.len() - 1] + 1..]);
+        }
+        output.push(line_to_push);
+    }
+    output
+}
+
 mod test_parse {
     use crate::parse::*;
     #[test]
@@ -560,6 +736,212 @@ a
                 Line::new("b".to_string(), LineType::Command, 2),
                 Line::new("super + a".to_string(), LineType::Key, 3),
                 Line::new("aa".to_string(), LineType::Command, 5),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_line_basic() {
+        let keyline =
+            Line { content: "super + b".to_string(), linetype: LineType::Key, linenumber: 1 };
+        let commandline =
+            Line { content: "b".to_string(), linetype: LineType::Command, linenumber: 2 };
+        let output = parse_line(keyline, commandline, PathBuf::new());
+        assert_eq!(
+            output.unwrap()[0],
+            ParseOutput::Hotkey(Hotkey::new(
+                evdev::Key::KEY_B,
+                vec![Modifier::Super],
+                "b".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_line_curly_brace() {
+        let keyline = Line {
+            content: "super + {1,2,3,4}".to_string(),
+            linetype: LineType::Key,
+            linenumber: 1,
+        };
+        let commandline =
+            Line { content: "{1,2,3,4}".to_string(), linetype: LineType::Command, linenumber: 2 };
+        let output = parse_line(keyline, commandline, PathBuf::new());
+        assert_eq!(
+            output.unwrap(),
+            vec![
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_1,
+                    vec![Modifier::Super],
+                    "1".to_string()
+                )),
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_2,
+                    vec![Modifier::Super],
+                    "2".to_string()
+                )),
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_3,
+                    vec![Modifier::Super],
+                    "3".to_string()
+                )),
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_4,
+                    vec![Modifier::Super],
+                    "4".to_string()
+                )),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_line_multiple_curly_braces() {
+        let keyline = Line {
+            content: "super + {shift+, ctrl+} {1,2,3,4}".to_string(),
+            linetype: LineType::Key,
+            linenumber: 1,
+        };
+        let commandline = Line {
+            content: "{1,2,3,4, 5,6,  7,8}".to_string(),
+            linetype: LineType::Command,
+            linenumber: 2,
+        };
+        let output = parse_line(keyline, commandline, PathBuf::new());
+        assert_eq!(
+            output.unwrap(),
+            vec![
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_1,
+                    vec![Modifier::Super, Modifier::Shift],
+                    "1".to_string()
+                )),
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_2,
+                    vec![Modifier::Super, Modifier::Shift],
+                    "2".to_string()
+                )),
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_3,
+                    vec![Modifier::Super, Modifier::Shift],
+                    "3".to_string()
+                )),
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_4,
+                    vec![Modifier::Super, Modifier::Shift],
+                    "4".to_string()
+                )),
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_1,
+                    vec![Modifier::Super, Modifier::Control],
+                    "5".to_string()
+                )),
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_2,
+                    vec![Modifier::Super, Modifier::Control],
+                    "6".to_string()
+                )),
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_3,
+                    vec![Modifier::Super, Modifier::Control],
+                    "7".to_string()
+                )),
+                ParseOutput::Hotkey(Hotkey::new(
+                    evdev::Key::KEY_4,
+                    vec![Modifier::Super, Modifier::Control],
+                    "8".to_string()
+                )),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_line_keychord_basic() {
+        let keyline =
+            Line { content: "super + a; b".to_string(), linetype: LineType::Key, linenumber: 1 };
+        let commandline =
+            Line { content: "a".to_string(), linetype: LineType::Command, linenumber: 2 };
+        let output = parse_line(keyline, commandline, PathBuf::new());
+        assert_eq!(
+            output.unwrap(),
+            vec![ParseOutput::KeyChord(KeyChord {
+                entry: KeyBinding::new(evdev::Key::KEY_A, vec![Modifier::Super]),
+                chords: vec![vec![KeyBinding::new(evdev::Key::KEY_B, vec![])]],
+                commands: vec!["a".to_string()],
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_line_keychord_complex() {
+        let keyline = Line {
+            content: "super + {1,2}; {3,4}; {5,6}".to_string(),
+            linetype: LineType::Key,
+            linenumber: 1,
+        };
+        let commandline = Line {
+            content: "{1,2,3,4,5,6,7,8}".to_string(),
+            linetype: LineType::Command,
+            linenumber: 2,
+        };
+        let output = parse_line(keyline, commandline, PathBuf::new());
+        println!("{:#?}", output);
+        assert_eq!(
+            output.unwrap(),
+            vec![
+                ParseOutput::KeyChord(KeyChord {
+                    entry: KeyBinding::new(evdev::Key::KEY_1, vec![Modifier::Super]),
+                    chords: vec![
+                        vec![
+                            KeyBinding::new(evdev::Key::KEY_3, vec![]),
+                            KeyBinding::new(evdev::Key::KEY_5, vec![]),
+                        ],
+                        vec![
+                            KeyBinding::new(evdev::Key::KEY_3, vec![]),
+                            KeyBinding::new(evdev::Key::KEY_6, vec![]),
+                        ],
+                        vec![
+                            KeyBinding::new(evdev::Key::KEY_4, vec![]),
+                            KeyBinding::new(evdev::Key::KEY_5, vec![]),
+                        ],
+                        vec![
+                            KeyBinding::new(evdev::Key::KEY_4, vec![]),
+                            KeyBinding::new(evdev::Key::KEY_6, vec![]),
+                        ],
+                    ],
+                    commands: vec![
+                        "1".to_string(),
+                        "2".to_string(),
+                        "3".to_string(),
+                        "4".to_string(),
+                    ],
+                }),
+                ParseOutput::KeyChord(KeyChord {
+                    entry: KeyBinding::new(evdev::Key::KEY_2, vec![Modifier::Super]),
+                    chords: vec![
+                        vec![
+                            KeyBinding::new(evdev::Key::KEY_3, vec![]),
+                            KeyBinding::new(evdev::Key::KEY_5, vec![]),
+                        ],
+                        vec![
+                            KeyBinding::new(evdev::Key::KEY_3, vec![]),
+                            KeyBinding::new(evdev::Key::KEY_6, vec![]),
+                        ],
+                        vec![
+                            KeyBinding::new(evdev::Key::KEY_4, vec![]),
+                            KeyBinding::new(evdev::Key::KEY_5, vec![]),
+                        ],
+                        vec![
+                            KeyBinding::new(evdev::Key::KEY_4, vec![]),
+                            KeyBinding::new(evdev::Key::KEY_6, vec![]),
+                        ],
+                    ],
+                    commands: vec![
+                        "5".to_string(),
+                        "6".to_string(),
+                        "7".to_string(),
+                        "8".to_string(),
+                    ],
+                }),
             ]
         );
     }
