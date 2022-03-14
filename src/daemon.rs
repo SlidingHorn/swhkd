@@ -22,8 +22,6 @@ mod config;
 use crate::config::Value;
 mod uinput;
 
-#[cfg(test)]
-mod parse;
 // #[cfg(test)]
 // mod tests;
 
@@ -86,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         exit(1);
     }
 
-    let load_config = || {
+    let load_config = || -> Vec<config::Hotkey> {
         let config_file_path: std::path::PathBuf = if args.is_present("config") {
             Path::new(args.value_of("config").unwrap()).to_path_buf()
         } else {
@@ -105,7 +103,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 log::error!("Config Error: {}", e);
                 exit(1);
             }
-            Ok(out) => out,
+            Ok(out) => out
+                .iter()
+                .map(|hotkey| {
+                    if hotkey.is_hotkey() {
+                        hotkey.extract_hotkey().to_owned()
+                    } else {
+                        panic!("Not a hotkey")
+                    }
+                })
+                .collect(),
         };
 
         for hotkey in &hotkeys {
@@ -272,7 +279,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 let possible_hotkeys: Vec<&config::Hotkey> = hotkeys.iter()
-                    .filter(|hotkey| hotkey.modifiers().len() == keyboard_state.state_modifiers.len())
+                    .filter(|hotkey| hotkey.keybinding.modifiers.len() == keyboard_state.state_modifiers.len())
                     .collect();
 
                 let event_in_hotkeys = hotkeys.iter().any(|hotkey| {
