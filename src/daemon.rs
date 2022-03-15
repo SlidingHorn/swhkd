@@ -22,8 +22,8 @@ mod config;
 use crate::config::Value;
 mod uinput;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 struct KeyboardState {
     state_modifiers: HashSet<config::Modifier>,
