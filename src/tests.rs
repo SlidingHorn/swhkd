@@ -1,7 +1,6 @@
-#[cfg(test)]
-mod test_parse {
+mod test_line_operations {
     use crate::config::*;
-    use std::path::PathBuf;
+
     #[test]
     fn test_join_line() {
         let line1 = Line::new("ctrl+shift+\\".to_string(), LineType::Key, 3);
@@ -44,6 +43,11 @@ a
             ]
         );
     }
+}
+
+mod test_parse_line {
+    use crate::config::*;
+    use std::path::PathBuf;
 
     #[test]
     fn test_parse_line_basic() {
@@ -249,5 +253,81 @@ a
                 }),
             ]
         );
+    }
+}
+
+mod test_parse_content {
+    use crate::config::*;
+    use std::path::PathBuf;
+
+    pub trait TestParse<E> {
+        fn test_valid(&self, expected: E);
+    }
+
+    impl TestParse<&str> for &str {
+        fn test_valid(&self, expected: &str) {
+            let output = parse_contents(self, PathBuf::new());
+            println!("{:#?}", output);
+            assert!(output.is_ok());
+            let expected_output = parse_contents(expected, PathBuf::new()).unwrap();
+            assert_eq!(output.as_ref().unwrap().len(), expected_output.len());
+            for item in output.unwrap() {
+                assert!(expected_output.contains(&item));
+            }
+        }
+    }
+
+    impl TestParse<Vec<Hotkey>> for &str {
+        fn test_valid(&self, expected: Vec<Hotkey>) {
+            let output = parse_contents(self, PathBuf::new());
+            println!("{:#?}", output);
+            assert!(output.is_ok());
+            assert_eq!(output.as_ref().unwrap().len(), expected.len());
+            for item in output.unwrap() {
+                assert!(item.is_hotkey());
+                assert!(expected.contains(item.extract_hotkey()));
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_content_curly_brace() {
+        let contents = "
+super + {_,ctrl + }{_,shift + }{1-4}
+    dwmc {, toggle}{view, tag}ex {0-3}";
+        let expected = "
+super + {1,2,3,4}
+    dwmc viewex {0,1,2,3}
+super + ctrl + {1,2,3,4}
+    dwmc toggleviewex {0,1,2,3}
+super + shift + {1,2,3,4}
+    dwmc tagex {0,1,2,3}
+super + ctrl + shift + {1,2,3,4}
+    dwmc toggletagex {0,1,2,3}";
+        contents.test_valid(expected);
+    }
+
+    #[test]
+    fn test_parse_prefixes() {
+        let contents = "
+super + @a
+    a
+super + ~b
+    b
+super + @~c
+    c
+super + ~@d
+    d";
+        let expected = vec![
+            Hotkey::new(evdev::Key::KEY_A, vec![Modifier::Super], "a".to_string()).on_release(),
+            Hotkey::new(evdev::Key::KEY_B, vec![Modifier::Super], "b".to_string()).send(),
+            Hotkey::new(evdev::Key::KEY_C, vec![Modifier::Super], "c".to_string())
+                .on_release()
+                .send(),
+            Hotkey::new(evdev::Key::KEY_D, vec![Modifier::Super], "d".to_string())
+                .on_release()
+                .send(),
+        ];
+        contents.test_valid(expected);
     }
 }

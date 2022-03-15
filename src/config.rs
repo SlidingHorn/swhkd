@@ -525,14 +525,18 @@ pub fn load(path: &Path) -> Result<Vec<ParseOutput>, Error> {
 }
 
 pub fn parse_config(config: Config) -> Result<Vec<ParseOutput>, Error> {
+    let contents = load_file_contents(&config.path)?;
+    parse_contents(&contents, config.path)
+}
+
+pub fn parse_contents(contents: &str, path: PathBuf) -> Result<Vec<ParseOutput>, Error> {
     let mut output: Vec<ParseOutput> = Vec::new();
-    let content = load_file_contents(&config.path)?;
-    let lines = load_to_lines(&content);
+    let lines = load_to_lines(contents);
     let lines = join_lines(lines);
     for (i, line) in lines.iter().enumerate() {
         if line.linetype == LineType::Key {
             if let Some(command) = lines.get(i + 1) {
-                let parse_output = parse_line(line.clone(), command.clone(), config.path.clone())?;
+                let parse_output = parse_line(line.clone(), command.clone(), path.clone())?;
                 for item in parse_output {
                     if !output.contains(&item) {
                         output.push(item);
