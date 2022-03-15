@@ -93,6 +93,7 @@ impl Config {
         Ok(imports)
     }
 
+    // Load contents and imports from a given path
     pub fn new(path: &Path) -> Result<Self, Error> {
         let contents = load_file_contents(path)?;
         let imports = Self::get_imports(&contents)?;
@@ -108,6 +109,7 @@ impl Config {
         Ok(configs)
     }
 
+    // Load from a given config and all its imports until there are no more imports.
     pub fn load_and_merge(mut configs: Vec<Self>) -> Result<Vec<Self>, Error> {
         let mut prev_count = 0;
         let mut current_count = configs.len();
@@ -135,6 +137,7 @@ pub struct KeyBinding {
     pub on_release: bool,
 }
 
+// Manually implement PartialEq because we want to ignore the order of the modifiers
 impl PartialEq for KeyBinding {
     fn eq(&self, other: &Self) -> bool {
         self.keysym == other.keysym
@@ -198,7 +201,10 @@ pub struct Hotkey {
 
 #[derive(Debug, PartialEq)]
 pub struct KeyChord {
+    // Entry is a first keybinding in the chord. Pressing it should trigger the pending mode.
     pub entry: KeyBinding,
+    // Each entry may include multiple chords and multiple keybindings in a chord.
+    // Example: super + a; {a, b, c}; {1, 2, 3}
     pub chords: Vec<Vec<KeyBinding>>,
     pub commands: Vec<String>,
 }
@@ -277,10 +283,8 @@ impl Value for &Hotkey {
 pub enum LineType {
     Key,
     Command,
-    // In case we want to add more statements
-    Statement,
-    // Other stands for comments and empty lines
-    Other,
+    Statement, // In case we want to add more statements
+    Other,     // Other stands for comments and empty lines
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -296,6 +300,7 @@ impl Line {
         Line { content, linetype, linenumber }
     }
 
+    // Return the line's type defined in LineType
     pub fn mark_line(line: &str) -> LineType {
         if line.trim().is_empty() || line.trim().starts_with(COMMENT_SYMBOL) {
             LineType::Other
@@ -312,6 +317,7 @@ impl Line {
         Line { content: content.to_string(), linetype: Self::mark_line(content), linenumber }
     }
 
+    // Join a line ending with a backslash with another line
     pub fn join_line(self, other: &Self) -> Self {
         if self.linetype == other.linetype {
             Line {
@@ -340,6 +346,7 @@ impl Line {
     }
 }
 
+// Load all the lines from a string and mark the types
 pub fn load_to_lines(content: &str) -> Vec<Line> {
     let mut lines = Vec::new();
     let mut linenumber = 0;
@@ -354,6 +361,7 @@ pub fn load_to_lines(content: &str) -> Vec<Line> {
     lines
 }
 
+// Go through each line and join lines ending with a backslash if they have the same type
 pub fn join_lines(lines: Vec<Line>) -> Vec<Line> {
     let mut joined_lines = Vec::new();
     let mut prev_line = lines[0].clone().trim();
@@ -511,6 +519,7 @@ pub fn match_keysym(keysym: &str) -> Option<evdev::Key> {
     }
 }
 
+// The main function used by daemon
 pub fn load(path: &Path) -> Result<Vec<ParseOutput>, Error> {
     let mut output = Vec::new();
     let configs = vec![Config::new(path)?];
@@ -538,6 +547,7 @@ pub fn parse_contents(contents: &str, path: PathBuf) -> Result<Vec<ParseOutput>,
             if let Some(command) = lines.get(i + 1) {
                 let parse_output = parse_line(line.clone(), command.clone(), path.clone())?;
                 for item in parse_output {
+                    // Ignore duplications
                     if !output.contains(&item) {
                         output.push(item);
                     }
@@ -553,6 +563,7 @@ pub fn parse_keybinding(key: &str, line_nr: u32, path: PathBuf) -> Result<KeyBin
     let splited_tokens: Vec<String> = key.split('+').map(|x| x.trim().to_string()).collect();
     let mut tokens: Vec<String> = Vec::new();
     for mut token in splited_tokens {
+        // Remove all the '_' as it's the 'None' key
         while token.trim().starts_with('_') {
             token = token.trim().strip_prefix('_').unwrap().to_string();
         }
@@ -594,10 +605,12 @@ pub fn parse_line(
     path: PathBuf,
 ) -> Result<Vec<ParseOutput>, Error> {
     let mut output: Vec<ParseOutput> = Vec::new();
+    // Split by '#' to ignore inline comments. Split by ';' to separate chords.
     let keys: Vec<&str> =
         keyline.content.split('#').next().unwrap().split(';').map(|x| x.trim()).collect();
     let commands: Vec<String> = extract_curly_brace(&commandline.content);
     let mut command_iter = commands.iter();
+    // If there is only one key, we should return hotkeys, otherwise return keychords.
     if keys.len() == 1 {
         let keys = extract_curly_brace(keys[0]);
         for item in keys {
@@ -609,6 +622,8 @@ pub fn parse_line(
         }
         return Ok(output);
     }
+
+    // Parse keychords
     let mut keys_iter = keys.iter();
     let entries = extract_curly_brace(keys_iter.next().unwrap());
     let mut extracted_keys = Vec::new();
