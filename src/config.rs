@@ -748,4 +748,3 @@ pub fn extract_curly_brace(line: &str) -> Vec<String> {
     }
     output
 }
-
