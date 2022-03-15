@@ -260,12 +260,14 @@ mod test_parse_content {
     use crate::config::*;
     use std::path::PathBuf;
 
+    // Type E refers to the type of the expected output
+    // Use `impl TestParse<E> for T` to define a test method for type T, expecting type E
     pub trait TestParse<E> {
-        fn test_valid(&self, expected: E);
+        fn test(&self, expected: E);
     }
 
     impl TestParse<&str> for &str {
-        fn test_valid(&self, expected: &str) {
+        fn test(&self, expected: &str) {
             let output = parse_contents(self, PathBuf::new());
             println!("{:#?}", output);
             assert!(output.is_ok());
@@ -278,7 +280,7 @@ mod test_parse_content {
     }
 
     impl TestParse<Vec<Hotkey>> for &str {
-        fn test_valid(&self, expected: Vec<Hotkey>) {
+        fn test(&self, expected: Vec<Hotkey>) {
             let output = parse_contents(self, PathBuf::new());
             println!("{:#?}", output);
             assert!(output.is_ok());
@@ -287,6 +289,17 @@ mod test_parse_content {
                 assert!(item.is_hotkey());
                 assert!(expected.contains(item.extract_hotkey()));
             }
+        }
+    }
+
+    impl TestParse<Error> for &str {
+        fn test(&self, expected: Error) {
+            let output = parse_contents(self, PathBuf::new());
+            println!("{:#?}", output);
+            assert!(output.is_err());
+            let output = format!("{:?}", output.unwrap_err());
+            let expected = format!("{:?}", expected);
+            assert_eq!(output, expected);
         }
     }
 
@@ -304,7 +317,7 @@ super + shift + {1,2,3,4}
     dwmc tagex {0,1,2,3}
 super + ctrl + shift + {1,2,3,4}
     dwmc toggletagex {0,1,2,3}";
-        contents.test_valid(expected);
+        contents.test(expected);
     }
 
     #[test]
@@ -328,6 +341,32 @@ super + ~@d
                 .on_release()
                 .send(),
         ];
-        contents.test_valid(expected);
+        contents.test(expected);
+    }
+
+    #[test]
+    fn test_error_invalid_modifier() {
+        let contents = "
+super + invalid + a
+    a";
+        let expected = Error::InvalidConfig(ParseError::InvalidModifier(
+            PathBuf::new(),
+            2,
+            "invalid".to_string(),
+        ));
+        contents.test(expected);
+    }
+
+    #[test]
+    fn test_error_invalid_keysym() {
+        let contents = "
+super + invalid
+    a";
+        let expected = Error::InvalidConfig(ParseError::InvalidKeysym(
+            PathBuf::new(),
+            2,
+            "invalid".to_string(),
+        ));
+        contents.test(expected);
     }
 }
