@@ -459,7 +459,6 @@ pub fn match_keysym(keysym: &str) -> Option<evdev::Key> {
         "xf86audionext" => Some(evdev::Key::KEY_NEXTSONG),
         "xf86audiostop" => Some(evdev::Key::KEY_STOP),
         "xf86audiomedia" => Some(evdev::Key::KEY_MEDIA),
-        "," => Some(evdev::Key::KEY_COMMA),
         "comma" => Some(evdev::Key::KEY_COMMA),
         "." => Some(evdev::Key::KEY_DOT),
         "dot" => Some(evdev::Key::KEY_DOT),
@@ -474,7 +473,6 @@ pub fn match_keysym(keysym: &str) -> Option<evdev::Key> {
         "rightbrace" => Some(evdev::Key::KEY_RIGHTBRACE),
         "]" => Some(evdev::Key::KEY_RIGHTBRACE),
         "bracketright" => Some(evdev::Key::KEY_RIGHTBRACE),
-        ";" => Some(evdev::Key::KEY_SEMICOLON),
         "semicolon" => Some(evdev::Key::KEY_SEMICOLON),
         "'" => Some(evdev::Key::KEY_APOSTROPHE),
         "apostrophe" => Some(evdev::Key::KEY_APOSTROPHE),
@@ -605,9 +603,20 @@ pub fn parse_line(
     path: PathBuf,
 ) -> Result<Vec<ParseOutput>, Error> {
     let mut output: Vec<ParseOutput> = Vec::new();
+    let mut content = keyline.content;
+
+    macro_rules! escape {
+        ($char: expr, $replace: expr) => {
+            content = content.replace($char, $replace);
+        };
+    }
+
+    escape!("\\;", "semicolon");
+    escape!("\\,", "comma");
+    escape!("\\+", "plus");
+
     // Split by '#' to ignore inline comments. Split by ';' to separate chords.
-    let keys: Vec<&str> =
-        keyline.content.split('#').next().unwrap().split(';').map(|x| x.trim()).collect();
+    let keys: Vec<&str> = content.split('#').next().unwrap().split(';').map(|x| x.trim()).collect();
     let commands: Vec<String> = extract_curly_brace(&commandline.content);
     let mut command_iter = commands.iter();
     // If there is only one key, we should return hotkeys, otherwise return keychords.
@@ -695,14 +704,6 @@ pub fn extract_curly_brace(line: &str) -> Vec<String> {
     // we should extract the items between each comma and store them in a vector
     let mut tokens_vec: Vec<Vec<String>> = Vec::new();
     for item in items {
-        // Edge case: escape periods
-        // example:
-        // ```
-        // super + {\,, .}
-        //    riverctl focus-output {previous, next}
-        // ```
-        let item = item.replace("\\,", "comma");
-
         let items: Vec<String> = item.split(',').map(|s| s.trim().to_string()).collect();
         tokens_vec.push(handle_ranges(items));
     }

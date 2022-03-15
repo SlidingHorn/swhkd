@@ -224,4 +224,18 @@ super + invalid
         ];
         contents.test(expected);
     }
+
+    #[test]
+    fn test_parse_escape() {
+        let contents = "
+super + {\\;, \\,, \\+}
+    {1,2,3}
+            ";
+        let expected = vec![
+            Hotkey::new(evdev::Key::KEY_SEMICOLON, vec![Modifier::Super], "1".to_string()),
+            Hotkey::new(evdev::Key::KEY_COMMA, vec![Modifier::Super], "2".to_string()),
+            Hotkey::new(evdev::Key::KEY_KPPLUS, vec![Modifier::Super], "3".to_string()),
+        ];
+        contents.test(expected);
+    }
 }
