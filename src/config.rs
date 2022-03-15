@@ -7,7 +7,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
+// The statement we use to include a config file
 pub const IMPORT_STATEMENT: &str = "include";
+
 pub const COMMENT_SYMBOL: char = '#';
 
 #[derive(Debug)]
@@ -20,9 +22,9 @@ pub enum Error {
 #[derive(Debug, PartialEq)]
 pub enum ParseError {
     // u32 is the line number where an error occured
-    UnknownSymbol(PathBuf, u32),
-    InvalidModifier(PathBuf, u32),
-    InvalidKeysym(PathBuf, u32),
+    // UnknownSymbol(PathBuf, u32),
+    InvalidModifier(PathBuf, u32, String),
+    InvalidKeysym(PathBuf, u32, String),
 }
 
 impl From<std::io::Error> for Error {
@@ -42,19 +44,19 @@ impl fmt::Display for Error {
 
             Error::Io(io_err) => format!("I/O Error while parsing config file: {}", io_err).fmt(f),
             Error::InvalidConfig(parse_err) => match parse_err {
-                ParseError::UnknownSymbol(path, line_nr) => format!(
-                    "Error parsing config file {:?}. Unknown symbol at line {}.",
-                    path, line_nr
+                // ParseError::UnknownSymbol(path, line_nr) => format!(
+                //     "Error parsing config file {:?}. Unknown symbol at line {}.",
+                //     path, line_nr
+                // )
+                // .fmt(f),
+                ParseError::InvalidKeysym(path, line_nr, keysym) => format!(
+                    "Error parsing config file {:?}. Invalid keysym \"{}\" at line {}.",
+                    path, line_nr, keysym
                 )
                 .fmt(f),
-                ParseError::InvalidKeysym(path, line_nr) => format!(
-                    "Error parsing config file {:?}. Invalid keysym at line {}.",
-                    path, line_nr
-                )
-                .fmt(f),
-                ParseError::InvalidModifier(path, line_nr) => format!(
-                    "Error parsing config file {:?}. Invalid modifier at line {}.",
-                    path, line_nr
+                ParseError::InvalidModifier(path, line_nr, modifier) => format!(
+                    "Error parsing config file {:?}. Invalid modifier \"{}\" at line {}.",
+                    path, line_nr, modifier
                 )
                 .fmt(f),
             },
@@ -156,6 +158,7 @@ pub trait Value {
 }
 
 impl KeyBinding {
+    #[cfg(test)]
     pub fn new(keysym: evdev::Key, modifiers: Vec<Modifier>) -> Self {
         KeyBinding { keysym, modifiers, send: false, on_release: false }
     }
@@ -207,6 +210,7 @@ pub enum ParseOutput {
 }
 
 impl ParseOutput {
+    #[allow(dead_code)]
     pub fn is_keychord(&self) -> bool {
         matches!(self, ParseOutput::KeyChord(_))
     }
@@ -219,6 +223,7 @@ impl ParseOutput {
             _ => panic!("Not a hotkey"),
         }
     }
+    #[allow(dead_code)]
     pub fn extract_keychord(&self) -> &KeyChord {
         match self {
             ParseOutput::KeyChord(keychord) => keychord,
@@ -236,9 +241,6 @@ pub enum Modifier {
 }
 
 impl Hotkey {
-    pub fn from_keybinding(keybinding: KeyBinding, command: String) -> Self {
-        Hotkey { keybinding, command }
-    }
     #[cfg(test)]
     pub fn new(keysym: evdev::Key, modifiers: Vec<Modifier>, command: String) -> Self {
         Hotkey { keybinding: KeyBinding::new(keysym, modifiers), command }
@@ -289,6 +291,7 @@ pub struct Line {
 }
 
 impl Line {
+    #[cfg(test)]
     pub fn new(content: String, linetype: LineType, linenumber: u32) -> Self {
         Line { content, linetype, linenumber }
     }
@@ -551,11 +554,7 @@ pub fn parse_keybinding(key: &str, line_nr: u32, path: PathBuf) -> Result<KeyBin
         }
         tokens.push(token.to_string());
     }
-    let last_token = if let Some(token) = tokens.last() {
-        token
-    } else {
-        return Err(Error::InvalidConfig(ParseError::UnknownSymbol(path, line_nr)));
-    };
+    let last_token = tokens.last().unwrap();
     fn strip_prefix(token: &str) -> &str {
         if token.starts_with('@') || token.starts_with('~') {
             strip_prefix(&token[1..])
@@ -571,13 +570,17 @@ pub fn parse_keybinding(key: &str, line_nr: u32, path: PathBuf) -> Result<KeyBin
         if let Some(modifier) = match_modifier(token) {
             modifiers.push(modifier);
         } else {
-            return Err(Error::InvalidConfig(ParseError::InvalidModifier(path, line_nr)));
+            return Err(Error::InvalidConfig(ParseError::InvalidModifier(
+                path,
+                line_nr,
+                token.to_string(),
+            )));
         }
     }
     if let Some(keysym) = keysym {
         Ok(KeyBinding { keysym, modifiers, on_release, send })
     } else {
-        Err(Error::InvalidConfig(ParseError::UnknownSymbol(path, line_nr)))
+        Err(Error::InvalidConfig(ParseError::InvalidKeysym(path, line_nr, last_token.to_string())))
     }
 }
 
